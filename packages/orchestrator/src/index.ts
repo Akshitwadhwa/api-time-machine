@@ -40,6 +40,15 @@ export {
   type CompatibilityExitCode,
 } from "./report.js";
 
+export {
+  HASH_MARKER,
+  HISTORICAL_PROBE_PATH,
+  PARSER_REJECTION_MARKER,
+  runHistoricalProbe,
+  type HistoricalProbeDependencies,
+  type HistoricalProbeOptions,
+} from "./historical-probe.js";
+
 export interface CompatibilityAdapters {
   captureResponse(release: ClientRelease): Promise<CapturedResponse>;
   runClient(
