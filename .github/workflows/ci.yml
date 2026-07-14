@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - uses: pnpm/action-setup@v4
         with:
           version: 11.7.0
@@ -19,3 +22,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - name: Run historical-client compatibility gate
+        run: pnpm --filter @atm/cli exec tsx src/index.ts
