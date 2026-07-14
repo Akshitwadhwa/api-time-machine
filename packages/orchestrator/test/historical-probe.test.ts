@@ -72,6 +72,22 @@ const options = {
 };
 
 describe("runHistoricalProbe", () => {
+  it("accepts a successful probe even when Vitest suppresses its success log", async () => {
+    const testDependencies = dependencies([
+      commandResult(),
+      commandResult({ stdout: `${"a".repeat(40)}\n` }),
+      commandResult(),
+      commandResult({ exitCode: 0 }),
+      commandResult(),
+      commandResult(),
+    ]);
+
+    await expect(runHistoricalProbe(options, testDependencies)).resolves.toMatchObject({
+      status: "compatible",
+      responseSha256: sha256,
+    });
+  });
+
   it("classifies a marked production-parser rejection as incompatible", async () => {
     const testDependencies = dependencies([
       commandResult(),

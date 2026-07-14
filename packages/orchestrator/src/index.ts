@@ -49,6 +49,13 @@ export {
   type HistoricalProbeOptions,
 } from "./historical-probe.js";
 
+export {
+  runHistoricalCompatibilityGate,
+  type CompatibilityGateAdapters,
+  type CompatibilityGateOptions,
+  type CompatibilityGateResult,
+} from "./gate.js";
+
 export interface CompatibilityAdapters {
   captureResponse(release: ClientRelease): Promise<CapturedResponse>;
   runClient(

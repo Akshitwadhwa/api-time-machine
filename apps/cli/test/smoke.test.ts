@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { runScaffoldSmoke } from "../src/smoke.js";
 
-describe("scaffold vertical smoke", () => {
+describe("breaking vertical smoke", () => {
   it("proves the real backend response breaks the strict release 1.0 parser", async () => {
     const run = await runScaffoldSmoke();
 

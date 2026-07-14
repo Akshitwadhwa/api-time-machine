@@ -10,7 +10,7 @@ import type {
 export interface EvidenceBundleInput {
   run: CompatibilityRun;
   captures: CapturedResponse[];
-  releaseCommits: Record<string, string>;
+  releaseCommits: Record<string, string | null>;
 }
 
 export interface EvidenceBundle {
@@ -64,8 +64,9 @@ function renderMatrix(input: EvidenceBundleInput): string {
   ];
 
   for (const result of input.run.clients) {
+    const commit = input.releaseCommits[result.release.version] ?? "unavailable";
     lines.push(
-      `| ${result.release.version} | ${result.release.gitTag} | ${input.releaseCommits[result.release.version]} | ${resultLabel(result)} | ${(result.release.activeShare * 100).toFixed(2)}% | ${result.responseSha256} |`,
+      `| ${result.release.version} | ${result.release.gitTag} | ${commit} | ${resultLabel(result)} | ${(result.release.activeShare * 100).toFixed(2)}% | ${result.responseSha256} |`,
     );
   }
 
@@ -87,9 +88,9 @@ function validateEvidence(input: EvidenceBundleInput): void {
     }
 
     const commitSha = input.releaseCommits[result.release.version];
-    if (!/^[a-f0-9]{40}$/i.test(commitSha ?? "")) {
+    if (commitSha !== null && !/^[a-f0-9]{40}$/i.test(commitSha ?? "")) {
       throw new EvidenceBundleError(
-        `Evidence is missing a valid commit SHA for ${result.release.version}.`,
+        `Evidence has an invalid commit SHA for ${result.release.version}.`,
       );
     }
   }

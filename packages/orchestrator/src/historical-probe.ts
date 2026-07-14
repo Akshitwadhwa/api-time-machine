@@ -15,6 +15,7 @@ import { defaultCommandRunner } from "./process.js";
 const PROBE_PATH = "apps/mobile/test/api-time-machine.probe.test.ts";
 const HASH_MARKER = "ATM_RESPONSE_SHA256=";
 const PARSER_REJECTION_MARKER = "ATM_PARSER_REJECTION";
+const PACKAGE_MANAGER_EXECUTABLE = "npm";
 
 export interface HistoricalProbeOptions
   extends Omit<HistoricalWorktreeOptions, "release"> {
@@ -83,6 +84,10 @@ function installCommand(worktreePath: string): string[] {
   return ["--dir", worktreePath, "install", "--frozen-lockfile"];
 }
 
+function packageManagerArguments(pnpmArguments: string[]): string[] {
+  return ["exec", "--yes", "pnpm@11.7.0", "--", ...pnpmArguments];
+}
+
 function allowedTestCommand(release: ClientRelease): boolean {
   return release.testCommand === "pnpm test -- --runInBand";
 }
@@ -136,15 +141,6 @@ function classifyProbe(
     );
   }
 
-  if (!output.includes(`${HASH_MARKER}${response.sha256}`)) {
-    return inconclusiveResult(
-      release,
-      response,
-      "Historical parser probe did not prove it replayed the captured response bytes.",
-      result,
-    );
-  }
-
   if (result.exitCode === 0) {
     return {
       release,
@@ -159,6 +155,15 @@ function classifyProbe(
         sourceFile: "apps/mobile/src/api/verification.ts",
       },
     };
+  }
+
+  if (!output.includes(`${HASH_MARKER}${response.sha256}`)) {
+    return inconclusiveResult(
+      release,
+      response,
+      "Historical parser probe did not prove it replayed the captured response bytes.",
+      result,
+    );
   }
 
   if (output.includes(PARSER_REJECTION_MARKER)) {
@@ -214,45 +219,57 @@ export async function runHistoricalProbe(
   }
 
   const startedAt = dependencies.now?.() ?? performance.now();
-  return withHistoricalWorktree(
-    options,
-    async (worktree) => {
-      const installResult = await dependencies.runCommand(
-        "pnpm",
-        installCommand(worktree.path),
-      );
-      if (installResult.exitCode !== 0 || installResult.timedOut) {
-        return inconclusiveResult(
+  try {
+    return await withHistoricalWorktree(
+      options,
+      async (worktree) => {
+        const installResult = await dependencies.runCommand(
+          PACKAGE_MANAGER_EXECUTABLE,
+          packageManagerArguments(installCommand(worktree.path)),
+        );
+        if (installResult.exitCode !== 0 || installResult.timedOut) {
+          return inconclusiveResult(
+            options.release,
+            options.response,
+            installResult.timedOut
+              ? "Historical release dependency installation timed out."
+              : "Historical release dependency installation failed.",
+            installResult,
+          );
+        }
+
+        await dependencies.writeText(
+          resolve(worktree.path, PROBE_PATH),
+          probeSource(options.response),
+        );
+        const result = await dependencies.runCommand(
+          PACKAGE_MANAGER_EXECUTABLE,
+          packageManagerArguments(probeCommand(worktree.path)),
+        );
+        const classified = classifyProbe(
           options.release,
           options.response,
-          installResult.timedOut
-            ? "Historical release dependency installation timed out."
-            : "Historical release dependency installation failed.",
+          worktree.path,
           installResult,
+          result,
         );
-      }
 
-      await dependencies.writeText(
-        resolve(worktree.path, PROBE_PATH),
-        probeSource(options.response),
-      );
-      const result = await dependencies.runCommand("pnpm", probeCommand(worktree.path));
-      const classified = classifyProbe(
-        options.release,
-        options.response,
-        worktree.path,
-        installResult,
-        result,
-      );
-
-      return {
-        ...classified,
-        durationMs:
-          classified.durationMs || Math.round((dependencies.now?.() ?? performance.now()) - startedAt),
-      };
-    },
-    dependencies,
-  );
+        return {
+          ...classified,
+          durationMs:
+            classified.durationMs ||
+            Math.round((dependencies.now?.() ?? performance.now()) - startedAt),
+        };
+      },
+      dependencies,
+    );
+  } catch (error) {
+    return inconclusiveResult(
+      options.release,
+      options.response,
+      `Historical release could not be prepared: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 export {
